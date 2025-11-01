@@ -252,3 +252,136 @@ result_table = [line, dot, Random_Walk_result, dot, determinist_script_result]
 print()
 for i in range(5):
     print(" | ".join(result_table[i]))
+
+#######################################################################################
+# Part IV — User input & command scripts | ASCII rendering of a trajectory
+# Goal: have fun, interact with the user, and produce an ASCII animation/snapshot.
+# This is the part I will convert to a short GIF/MP4 demo for LinkedIn.
+# Summary:
+# - valid_command(): collect and validate a user-entered command string (U/D/L/R)
+# - command_script(): execute the command, count steps/collisions, return the path
+# - render_frame(): compose a single ASCII frame with priority S/T/# > * > .
+# - draw_trace(): replay a previously computed path, static or animated
+#######################################################################################
+
+# Re-initialize the board before running interactive commands — Part I guarantees determinism
+board = board_obst()
+
+
+# User input & command scripts
+
+# I create a function that I can easily modify later.
+def valid_command():
+    word = input("Enter a list of directions, e.g. RRDDLU: ")  # input prompt
+    word = word.upper()  # normalize to uppercase
+    list_direct = ['U', 'D', 'L', 'R']  # valid direction symbols
+    if word == "":  # first validation: empty input
+        print("Please enter a non-empty input.")
+        return valid_command()
+    else:
+        if " " in word:   # second validation: remove spaces
+            word = word.replace(" ", "")
+        if "," in word:   # third validation: remove commas
+            word = word.replace(",", "")
+    list_word = list(word)
+    for i in range(len(list_word)):
+        # if any character is not a valid direction, restart the prompt
+        if list_word[i] not in list_direct:
+            print("Please enter only valid symbols: R, D, L, or U.")
+            return valid_command()
+    return list_word  # This list is consumed by the next function.
+
+result = valid_command()
+
+# Function to execute the user command and collect metrics/path
+def command_script(user_input):
+    list_position = []
+    x, y = 0, 0  # initial position of the MFM tip
+    valid_steps = 0  # count of accepted moves
+    npas_crashes = 0  # count of collisions (obstacles or outside of the board)
+    for j in user_input:
+        z = motion_board(x, y, j)  # avoid recomputing multiple times
+        if z[1] == True:
+            (x, y) = z[0]
+            list_position.append((x, y))
+            valid_steps += 1
+            if x == 9 and y == 9:
+                return [x == 9 and y == 9, valid_steps, list_position, (x, y), npas_crashes]
+        elif z[1] == False:
+            (x, y) = z[0]
+            npas_crashes += 1
+    return [x == 9 and y == 9, valid_steps, list_position, (x, y), npas_crashes]
+
+result_2 = command_script(result)
+path = result_2[2]
+
+# =========================
+# ASCII rendering of a trajectory
+# =========================
+
+# --- 1) Compose a single frame with priority: S/T/# > * > . ---
+def render_frame(base, visits, pos=None, spaced=True):
+    """
+    base    : immutable grid (S, T, #, .)
+    visits  : set of (x,y) positions already visited → rendered as '*'
+    pos     : current (x,y) position to optionally render a cursor 'o'
+    spaced  : True → spaces between characters for readability
+    """
+    lines = []
+    for y, row in enumerate(base):
+        line = []
+        for x, cell in enumerate(row):
+            if cell in ('S', 'T', '#'):
+                ch = cell                     # base has highest priority
+            elif (x, y) in visits:
+                ch = '*'                      # only mark free cells as visited
+            elif pos is not None and (x, y) == pos:
+                ch = 'o'                      # optional cursor to show current tip
+            else:
+                ch = '.'
+            line.append(ch)
+        lines.append(' '.join(line) if spaced else ''.join(line))
+    print('\n'.join(lines))
+
+# --- 2) Replay the path and place '*' only on free cells '.' ---
+def draw_trace(base, path, animate=False, delay=0.1, show_cursor=False):
+    """
+    base        : immutable grid
+    path        : list of (x,y) positions AFTER each validated step
+    animate     : True → frame-by-frame animation; False → final static frame
+    delay       : pause between frames if animate=True
+    show_cursor : True → show 'o' at the current position along with '*'
+    """
+    visits = set()
+    # starting position (useful if you want to display a pre-move cursor)
+    current = (0, 0)
+
+    if animate:
+        import time
+
+    # Optional initial frame:
+    if animate:
+        print("\033[2J\033[H", end="")        # clear terminal screen
+        render_frame(base, visits, current if show_cursor else None)
+        time.sleep(delay)
+
+    # Replay the path: add '*' only on free '.' cells
+    for (x, y) in path:
+        current = (x, y)
+        if base[y][x] == '.':
+            visits.add((x, y))
+
+        if animate:
+            print("\033[2J\033[H", end="")    # clear terminal screen
+            render_frame(base, visits, current if show_cursor else None)
+            time.sleep(delay)
+
+    # If not animating, render just the final state (complete trace)
+    if not animate:
+        render_frame(base, visits, current if show_cursor and path else None)
+
+base = board
+# Render the final trace (static) and then an animated version (2s per frame for demo clarity)
+draw_trace(base, path, animate=False)            # final static rendering
+#draw_trace(base, path, animate=True, delay=2)    # frame-by-frame animation
+
