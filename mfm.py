@@ -129,4 +129,126 @@ def motion_board(x, y, direction):
         return [(x, y), False]        # blocked: stay put (collision)
 
 
+#######################################################################################
+# Part III — Move strategies: Random and deterministic displacement
+# Coverage, efficiency, and final results — this section prints the summary table.
+#
+# Summary:
+# - Random_Walk(): random step attempts (seed=124) with counts for valid steps and collisions.
+# - determinist_script(): fixed priority order (e.g., DRLU), first valid direction wins.
+# - d_manhattan(): Manhattan distance between S and T (expected 18 on this grid).
+# - The final print builds a simple text table for comparison.
+#######################################################################################
 
+# Random displacement strategy
+
+def Random_Walk():
+    i = 0                           # loop counter (attempts)
+    x, y = 0, 0                     # initial position of the MFM tip
+    list_position = [(x, y)]        # track unique visited cells (includes S at start)
+    valid_steps = 0                 # number of accepted moves
+    npas_crashes = 0                # number of collisions (refused attempts)
+    max_step = 400                  # maximum number of attempts
+    random.seed(124)                # reproducible random sequence
+
+    while i < max_step:
+        direct = random.choice(['U', 'D', 'L', 'R'])  # pick a random direction
+        z = motion_board(x, y, direct)                # single-step attempt
+        if z[1] == True:
+            (x, y) = z[0]
+            valid_steps += 1
+            # Avoid duplicates: len(list_position) will be our coverage (including S)
+            if (x, y) not in list_position:
+                list_position.append((x, y))
+            if x == 9 and y == 9:
+                return [x == 9 and y == 9, valid_steps, len(list_position),
+                        list_position, (x, y), npas_crashes]
+        elif z[1] == False:
+            (x, y) = z[0]
+            npas_crashes += 1
+        i += 1
+
+    # End of budget — if target not reached, return current metrics
+    if not (x == 9 and y == 9):     # Boolean style
+        return [x == 9 and y == 9, valid_steps, len(list_position),
+                list_position, (x, y), npas_crashes]
+
+
+# Distance (Manhattan) — minimal steps ignoring obstacles
+def d_manhattan(a, b):
+    # Scan the board to locate symbols a and b (S and T in this project)
+    for i in range(10):
+        for j in range(10):
+            if board[i][j] == a:
+                x1, y1 = j, i
+            if board[i][j] == b:
+                x2, y2 = j, i
+    return abs(x1 - x2) + abs(y1 - y2)
+
+d_manhattan("S", "T")
+
+# Path efficiency
+efficiency_1 = round(d_manhattan("S", "T") / Random_Walk()[1], 3)
+
+Random_Walk_result = ["RandomWalk", "     " + str(Random_Walk()[0]),
+                      "    " + str(Random_Walk()[1]) + "   ",
+                      "        " + str(Random_Walk()[-1]),
+                      "       " + str( efficiency_1), str(Random_Walk()[2])]
+
+# Re-initialize the board before the deterministic strategy — hence Part I’s importance
+board = board_obst()
+
+deter_1 = "DRLU"  # First example of deterministic priority order
+
+def determinist_script(deter_input):
+    a = 0
+    compteur = 20000
+    x, y = 0, 0                     # initial position of the MFM tip
+    list_position = [(x, y)]        # coverage tracker (includes S)
+    valid_steps = 0                 # number of accepted moves
+    npas_crashes = 0                # number of collisions (refused attempts)
+
+    while a < compteur:
+        j = 0
+        while j < len(deter_input):
+            z = motion_board(x, y, deter_input[j])  # try directions in fixed order
+            if z[1] == True:
+                (x, y) = z[0]
+                valid_steps += 1
+                # Avoid duplicates for coverage
+                if (x, y) not in list_position:
+                    list_position.append((x, y))
+                if x == 9 and y == 9:
+                    return [x == 9 and y == 9, valid_steps, len(list_position),
+                            list_position, (x, y), npas_crashes]
+                break
+            elif z[1] == False:
+                (x, y) = z[0]
+                npas_crashes += 1
+            j += 1
+
+        # If none of the directions worked at this decision point → stop as “blocked”
+        if j == len(deter_input):
+            return [x == 9 and y == 9, valid_steps, len(list_position),
+                    list_position, (x, y), npas_crashes]
+        a += 1
+
+    # Safety stop (compteur reached)
+    return [x == 9 and y == 9, valid_steps, len(list_position),
+            list_position, (x, y), npas_crashes]
+
+efficiency_2 = round(d_manhattan("S", "T") / determinist_script(deter_1)[1], 3)
+determinist_script_result = ["Prio-DRLU ", "     " + str(determinist_script(deter_1)[0]),
+                             "    " + str(determinist_script(deter_1)[1]) + "    ",
+                             "         " + str(determinist_script(deter_1)[-1]),
+                             "         " + str( efficiency_2), str(determinist_script(deter_1)[2])]
+
+line = [" strategy ", "achieved ", "valid_step", "obstacles ", " efficiency ", "couverture"]
+dot = ["-" * 10, "-" * 9, "-" * 10, "-" * 10, "-" * 12, "-" * 10]
+
+result_table = [line, dot, Random_Walk_result, dot, determinist_script_result]
+
+# Baseline vs deterministic strategy — console table
+print()
+for i in range(5):
+    print(" | ".join(result_table[i]))
